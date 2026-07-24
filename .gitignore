@@ -1,0 +1,11 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+.python_packages/
+
+# segredos - nunca versionar
+local.settings.json
+
+# editor
+.vscode/
