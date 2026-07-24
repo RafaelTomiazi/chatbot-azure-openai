@@ -16,7 +16,6 @@
     --accent-soft: #1c2c4a;
     --user-bubble: #2563eb;
     --bot-bubble: #1e222e;
-    --danger: #ff6b6b;
     --radius: 14px;
     --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
   }
@@ -54,16 +53,8 @@
     flex-shrink: 0;
   }
 
-  header .titles h1 {
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-  header .titles p {
-    font-size: 12px;
-    color: var(--text-dim);
-    margin-top: 2px;
-  }
+  header .titles h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  header .titles p { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
   .session-tag {
     margin-left: auto;
@@ -139,6 +130,15 @@
     border-top-right-radius: 4px;
   }
 
+  .bubble img.enviada {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .bubble img.enviada:only-child { margin-bottom: 0; }
+
   .typing .bubble { display: flex; gap: 4px; align-items: center; padding: 14px 16px; }
   .dot {
     width: 7px; height: 7px; border-radius: 50%;
@@ -156,7 +156,7 @@
     margin: auto;
     text-align: center;
     color: var(--text-dim);
-    max-width: 380px;
+    max-width: 400px;
     padding: 20px;
   }
   .empty .big {
@@ -169,7 +169,15 @@
     margin: 0 auto 16px;
   }
   .empty h2 { font-size: 18px; color: var(--text); margin-bottom: 8px; font-weight: 600; }
-  .empty p { font-size: 13.5px; line-height: 1.5; }
+  .empty p { font-size: 13.5px; line-height: 1.6; }
+  .empty kbd {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
+    font-family: var(--font);
+  }
 
   footer {
     padding: 14px 16px;
@@ -177,30 +185,83 @@
     border-top: 1px solid var(--line);
     flex-shrink: 0;
   }
-  .composer {
-    max-width: 760px;
-    margin: 0 auto;
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
+
+  .composer-area { max-width: 760px; margin: 0 auto; }
+
+  #preview {
+    display: none;
+    margin-bottom: 10px;
+    position: relative;
+    width: fit-content;
   }
-  textarea {
-    flex: 1;
-    resize: none;
+  #preview.ativo { display: block; }
+  #preview img {
+    max-height: 90px;
+    max-width: 200px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    display: block;
+  }
+  #removerImg {
+    position: absolute;
+    top: -7px; right: -7px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
     background: var(--panel-2);
     border: 1px solid var(--line);
     color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  #removerImg:hover { background: #3a4155; }
+
+  .composer { display: flex; gap: 10px; align-items: flex-end; }
+
+  .campo {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 12px 14px;
+    padding: 4px 4px 4px 12px;
+    transition: border-color 0.15s;
+  }
+  .campo:focus-within { border-color: var(--accent); }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 9px 0;
     font-family: var(--font);
     font-size: 14.5px;
     line-height: 1.4;
     max-height: 140px;
     outline: none;
-    transition: border-color 0.15s;
   }
-  textarea:focus { border-color: var(--accent); }
   textarea::placeholder { color: var(--text-dim); }
+
+  button.anexar {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+  }
+  button.anexar:hover { color: var(--text); background: #2a3040; }
 
   button.send {
     background: var(--accent);
@@ -219,7 +280,6 @@
   button.send:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .hint {
-    max-width: 760px;
     margin: 8px auto 0;
     font-size: 11px;
     color: var(--text-dim);
@@ -246,37 +306,56 @@
     <div class="empty" id="empty">
       <div class="big">💬</div>
       <h2>Comece uma conversa</h2>
-      <p>Faça uma pergunta e continue de onde parou — o assistente lembra do que já foi dito nesta sessão.</p>
+      <p>Faça uma pergunta ou cole um print com <kbd>Ctrl</kbd> + <kbd>V</kbd> para o assistente descrever a imagem. Ele lembra do que já foi dito nesta sessão.</p>
     </div>
   </div>
 </main>
 
 <footer>
-  <div class="composer">
-    <textarea id="input" rows="1" placeholder="Escreva sua pergunta..." autofocus></textarea>
-    <button class="send" id="send" title="Enviar">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-    </button>
+  <div class="composer-area">
+    <div id="preview">
+      <img id="previewImg" alt="Imagem anexada">
+      <button id="removerImg" title="Remover imagem">✕</button>
+    </div>
+    <div class="composer">
+      <div class="campo">
+        <textarea id="input" rows="1" placeholder="Escreva sua pergunta ou cole um print..." autofocus></textarea>
+        <button class="anexar" id="anexar" title="Anexar imagem">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+        </button>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+      <button class="send" id="send" title="Enviar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      </button>
+    </div>
+    <p class="hint">O assistente pode cometer erros. As respostas são geradas por IA.</p>
   </div>
-  <p class="hint">O assistente pode cometer erros. As respostas são geradas por IA.</p>
 </footer>
 
 <script>
-  // ====== CONFIGURAÇÃO ======
-  // URL da sua Azure Function, com a function key no final (?code=...)
+  // ====== CONFIGURACAO ======
   const API_URL = "https://func-rafael-tomiazi-btedgwa9b6g9cndf.eastus-01.azurewebsites.net/api/ask";
+  const MAX_LADO = 1568;  // redimensiona imagens grandes para nao pesar o payload
 
   // gera um session_id unico quando a pagina abre.
-  // isso reusa a memoria do Table Storage: todas as perguntas desta aba
-  // compartilham o mesmo id, entao o modelo mantem o contexto.
+  // todas as perguntas desta aba compartilham o mesmo id, entao o backend
+  // mantem o contexto (inclusive as imagens, guardadas no blob storage)
   const sessionId = "web-" + Math.random().toString(36).slice(2, 10);
 
   const chat = document.getElementById("chat");
   const wrap = document.getElementById("wrap");
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("send");
+  const anexarBtn = document.getElementById("anexar");
+  const fileInput = document.getElementById("fileInput");
+  const preview = document.getElementById("preview");
+  const previewImg = document.getElementById("previewImg");
+  const removerImg = document.getElementById("removerImg");
   const empty = document.getElementById("empty");
   document.getElementById("sessionTag").textContent = "sessão: " + sessionId;
+
+  let imagemAtual = null;  // guarda o data uri da imagem anexada
 
   // cresce o textarea conforme digita
   input.addEventListener("input", () => {
@@ -293,15 +372,93 @@
   });
   sendBtn.addEventListener("click", enviar);
 
-  function addMsg(texto, quem) {
-    if (empty) empty.remove();
+  // ---- anexar por botao ----
+  anexarBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) processarImagem(file);
+    fileInput.value = "";
+  });
+
+  // ---- colar imagem com ctrl+v ----
+  document.addEventListener("paste", (e) => {
+    const itens = e.clipboardData ? e.clipboardData.items : null;
+    if (!itens) return;
+    for (const item of itens) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) processarImagem(file);
+        return;
+      }
+    }
+  });
+
+  // ---- arrastar e soltar ----
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files[0] : null;
+    if (file && file.type.startsWith("image/")) processarImagem(file);
+  });
+
+  removerImg.addEventListener("click", limparImagem);
+
+  function limparImagem() {
+    imagemAtual = null;
+    preview.classList.remove("ativo");
+    previewImg.src = "";
+  }
+
+  // le o arquivo, redimensiona se for muito grande e guarda como data uri
+  function processarImagem(file) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        // so redimensiona se passar do limite, mantendo a proporcao
+        if (width > MAX_LADO || height > MAX_LADO) {
+          const escala = MAX_LADO / Math.max(width, height);
+          width = Math.round(width * escala);
+          height = Math.round(height * escala);
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+        imagemAtual = canvas.toDataURL("image/png");
+        previewImg.src = imagemAtual;
+        preview.classList.add("ativo");
+        input.focus();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addMsg(texto, quem, dataUri) {
+    if (empty && empty.parentNode) empty.remove();
     const msg = document.createElement("div");
     msg.className = "msg " + quem;
     const avatar = quem === "user" ? "V" : "K";
-    msg.innerHTML = `
-      <div class="avatar">${avatar}</div>
-      <div class="bubble"></div>`;
-    msg.querySelector(".bubble").textContent = texto;
+    msg.innerHTML = '<div class="avatar">' + avatar + '</div><div class="bubble"></div>';
+
+    const bubble = msg.querySelector(".bubble");
+    if (dataUri) {
+      const img = document.createElement("img");
+      img.className = "enviada";
+      img.src = dataUri;
+      bubble.appendChild(img);
+    }
+    if (texto) {
+      bubble.appendChild(document.createTextNode(texto));
+    }
+
     wrap.appendChild(msg);
     chat.scrollTop = chat.scrollHeight;
     return msg;
@@ -310,9 +467,7 @@
   function addTyping() {
     const msg = document.createElement("div");
     msg.className = "msg bot typing";
-    msg.innerHTML = `
-      <div class="avatar">K</div>
-      <div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+    msg.innerHTML = '<div class="avatar">K</div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
     wrap.appendChild(msg);
     chat.scrollTop = chat.scrollHeight;
     return msg;
@@ -320,21 +475,29 @@
 
   async function enviar() {
     const pergunta = input.value.trim();
-    if (!pergunta) return;
+    const imagem = imagemAtual;
+
+    // precisa de pelo menos um dos dois
+    if (!pergunta && !imagem) return;
 
     input.value = "";
     input.style.height = "auto";
     input.disabled = true;
     sendBtn.disabled = true;
+    limparImagem();
 
-    addMsg(pergunta, "user");
+    addMsg(pergunta, "user", imagem);
     const typing = addTyping();
 
     try {
+      const corpo = { session_id: sessionId };
+      if (pergunta) corpo.pergunta = pergunta;
+      if (imagem) corpo.imagem = imagem;
+
       const resp = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, pergunta: pergunta })
+        body: JSON.stringify(corpo)
       });
 
       typing.remove();

@@ -2,8 +2,18 @@ import azure.functions as func
 import logging
 import os
 import json
+import re
+import uuid
+import base64
+from datetime import datetime, timedelta, timezone
 from openai import AzureOpenAI
 from azure.data.tables import TableServiceClient
+from azure.storage.blob import (
+    BlobServiceClient,
+    generate_blob_sas,
+    BlobSasPermissions,
+    ContentSettings,
+)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -17,29 +27,83 @@ client = AzureOpenAI(
 DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]
 STORAGE_CONNECTION = os.environ["STORAGE_CONNECTION"]
 TABELA = "conversas"
+CONTAINER = "imagens"
+DIAS_VALIDADE_SAS = 7
 
-# prepara o cliente da tabela e garante que ela existe
+# tabela do historico
 tabela_service = TableServiceClient.from_connection_string(STORAGE_CONNECTION)
 tabela_service.create_table_if_not_exists(TABELA)
 tabela_client = tabela_service.get_table_client(TABELA)
 
+# blob das imagens
+blob_service = BlobServiceClient.from_connection_string(STORAGE_CONNECTION)
+try:
+    blob_service.create_container(CONTAINER)
+except Exception:
+    pass  # container ja existe
+
+
+def subir_imagem(data_uri: str) -> str:
+    """Recebe a imagem em base64, sobe no blob e devolve uma url assinada."""
+    match = re.match(r"data:(image/[\w+]+);base64,(.+)", data_uri, re.DOTALL)
+    if not match:
+        raise ValueError("formato de imagem invalido")
+
+    content_type = match.group(1)
+    dados = base64.b64decode(match.group(2))
+    extensao = content_type.split("/")[1]
+
+    nome = f"{uuid.uuid4().hex}.{extensao}"
+    blob_client = blob_service.get_blob_client(container=CONTAINER, blob=nome)
+    blob_client.upload_blob(
+        dados,
+        overwrite=True,
+        content_settings=ContentSettings(content_type=content_type),
+    )
+
+    # url temporaria de leitura, para o modelo conseguir baixar
+    sas = generate_blob_sas(
+        account_name=blob_service.account_name,
+        container_name=CONTAINER,
+        blob_name=nome,
+        account_key=blob_service.credential.account_key,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.now(timezone.utc) + timedelta(days=DIAS_VALIDADE_SAS),
+    )
+    return f"{blob_client.url}?{sas}"
+
 
 def carregar_historico(session_id: str) -> list:
-    # busca todas as mensagens dessa sessao, ordenadas pela ordem em que chegaram
+    """Monta o historico no formato que o modelo espera, reincluindo imagens."""
     filtro = f"PartitionKey eq '{session_id}'"
     linhas = tabela_client.query_entities(filtro)
-    mensagens = sorted(linhas, key=lambda x: x["RowKey"])
-    return [{"role": m["role"], "content": m["content"]} for m in mensagens]
+    ordenadas = sorted(linhas, key=lambda x: x["RowKey"])
+
+    mensagens = []
+    for m in ordenadas:
+        url_imagem = m.get("image_url")
+        if url_imagem:
+            mensagens.append({
+                "role": m["role"],
+                "content": [
+                    {"type": "text", "text": m["content"]},
+                    {"type": "image_url", "image_url": {"url": url_imagem}},
+                ],
+            })
+        else:
+            mensagens.append({"role": m["role"], "content": m["content"]})
+    return mensagens
 
 
-def salvar_mensagem(session_id: str, ordem: int, role: str, content: str):
-    # cada mensagem vira uma linha na tabela; o RowKey preserva a ordem
+def salvar_mensagem(session_id: str, ordem: int, role: str, content: str, url_imagem: str = None):
     entidade = {
         "PartitionKey": session_id,
         "RowKey": f"{ordem:04d}",
         "role": role,
-        "content": content,
+        "content": content[:30000],
     }
+    if url_imagem:
+        entidade["image_url"] = url_imagem
     tabela_client.create_entity(entidade)
 
 
@@ -53,28 +117,48 @@ def ask(req: func.HttpRequest) -> func.HttpResponse:
         corpo = {}
 
     pergunta = corpo.get('pergunta')
+    imagem = corpo.get('imagem')          # data uri base64, opcional
     session_id = corpo.get('session_id')
 
-    # a pergunta continua obrigatoria
-    if not pergunta:
+    if not pergunta and not imagem:
         return func.HttpResponse(
-            json.dumps({"erro": "envie uma pergunta no corpo json, campo 'pergunta'"}),
+            json.dumps({"erro": "envie uma pergunta e/ou uma imagem"}),
             status_code=400,
             mimetype="application/json",
         )
 
-    # se nao veio session_id, funciona como antes: sem memoria
-    if not session_id:
-        historico = []
-    else:
-        historico = carregar_historico(session_id)
+    if not pergunta:
+        pergunta = "o que e essa imagem?"
 
-    # monta as mensagens: system + historico + pergunta atual
+    # sobe a imagem no blob e pega a url assinada
+    url_imagem = None
+    if imagem:
+        try:
+            url_imagem = subir_imagem(imagem)
+            logging.info("imagem salva no blob")
+        except Exception as e:
+            logging.error(f"erro ao subir a imagem: {e}")
+            return func.HttpResponse(
+                json.dumps({"erro": "nao consegui processar a imagem"}),
+                status_code=400,
+                mimetype="application/json",
+            )
+
+    historico = carregar_historico(session_id) if session_id else []
+
     mensagens = [{"role": "system", "content": "voce e um assistente util e responde em portugues."}]
     mensagens.extend(historico)
-    mensagens.append({"role": "user", "content": pergunta})
 
-    # chama o modelo
+    if url_imagem:
+        conteudo = [
+            {"type": "text", "text": pergunta},
+            {"type": "image_url", "image_url": {"url": url_imagem}},
+        ]
+    else:
+        conteudo = pergunta
+
+    mensagens.append({"role": "user", "content": conteudo})
+
     try:
         resultado = client.chat.completions.create(
             model=DEPLOYMENT,
@@ -89,10 +173,10 @@ def ask(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json",
         )
 
-    # se tem sessao, salva a pergunta e a resposta pra manter a memoria
+    # guarda a url da imagem no historico, nunca o base64
     if session_id:
         proxima_ordem = len(historico)
-        salvar_mensagem(session_id, proxima_ordem, "user", pergunta)
+        salvar_mensagem(session_id, proxima_ordem, "user", pergunta, url_imagem)
         salvar_mensagem(session_id, proxima_ordem + 1, "assistant", resposta)
 
     return func.HttpResponse(
