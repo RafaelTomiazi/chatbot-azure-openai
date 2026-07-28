@@ -18,7 +18,7 @@ Place the files in a /docs folder and reference them like below. -->
 
 | Conversation with memory | Image understanding |
 |---|---|
-| _![chat](docs/screenshot-chat.png)_ | _![vision](docs/screenshot-vision.png)_ |
+| ![chat](docs/screenshot-chat.png) | ![vision](docs/screenshot-vision.png) |
 
 ---
 
